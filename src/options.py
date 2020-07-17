@@ -35,7 +35,7 @@ class Options:
         parser.add_argument('--test', action='store_true', default=False, help='Test only flag')
         parser.add_argument('--early-stop', type=int, default=20, help='Early stopping epochs.')
         # Optimization parameters
-        parser.add_argument('--epochs', type=int, default=30, metavar='N',
+        parser.add_argument('--epochs', type=int, default=10, metavar='N',
                             help='Number of epochs to train (default: 100)')
         parser.add_argument('--teacher-lr', type=lambda x: utils.restricted_float(x, [1e-5, 0.5]), default=0.0001, metavar='TLR',
                             help='Teacher Initial learning rate [1e-5, 5e-4] (default: 1e-4)')

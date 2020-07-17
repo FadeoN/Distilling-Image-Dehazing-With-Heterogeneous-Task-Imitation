@@ -108,21 +108,24 @@ def main():
 
             # train on training set
             losses = train(train_loader, distilled_model, epoch, args)
+            path_image_results = os.path.join(path_results, 'image_results1')
+            # TODO DELETE CODE BELOW
+            save_image_results(train_loader, distilled_model, path_image_results)
 
             # evaluate on validation set, map_ since map is already there
             print('***Validation***')
             valid_loss = validate(val_loader, distilled_model, epoch, args)
             dehazing_loss = valid_loss['dehazing_loss'].avg
 
-            print('Dehazing Loss on validation set after {0} epochs: {1:.4f} (dehaze)'
-                .format(epoch + 1, dehazing_loss))
+            print('Dehazing Loss on validation set after {0} epochs: {1:.4f} (dehaze), PSNR {2:.4f}, SSIM {3:.4f}'
+                .format(epoch + 1, dehazing_loss, valid_loss["loss_psnr"].avg, valid_loss["loss_ssim"].avg))
 
 
             if dehazing_loss > best_dehazing_loss:
                 best_dehazing_loss = dehazing_loss
                 early_stop_counter = 0
                 utils.save_checkpoint({'epoch': epoch + 1, 'state_dict': distilled_model.state_dict(), 'best_dehazing_loss':
-                    best_dehazing_loss}, directory=path_cp)
+                    best_dehazing_loss, "PSNR":valid_loss["loss_psnr"].avg, "SSIM":valid_loss["loss_ssim"].avg}, directory=path_cp)
             else:
                 if args.early_stop == early_stop_counter:
                     break
@@ -141,6 +144,13 @@ def main():
 
             logger.add_scalar('dehazing training  loss', losses['dehazing_loss'].avg)
             logger.add_scalar('dehazing validation  loss', valid_loss['dehazing_loss'].avg)
+
+            logger.add_scalar('PSNR training  loss', losses['loss_psnr'].avg)
+            logger.add_scalar('PSNR validation  loss', valid_loss['loss_psnr'].avg)
+
+            logger.add_scalar('SSIM training  loss', losses['loss_ssim'].avg)
+            logger.add_scalar('SSIM validation  loss', valid_loss['loss_ssim'].avg)
+
             logger.step()
 
 
@@ -151,12 +161,16 @@ def main():
         checkpoint = torch.load(best_model_file)
         epoch = checkpoint['epoch']
         best_dehazing_loss = checkpoint['best_dehazing_loss']
+        psnr_loss = checkpoint["PSNR"]
+        ssim_loss = checkpoint["SSIM"]
         distilled_model.load_state_dict(checkpoint['state_dict'])
-        print("Loaded best model '{0}' (epoch {1}; Dehaze Network Loss {2:.4f})".format(best_model_file, epoch, best_dehazing_loss))
+        print("Loaded best model '{0}' (epoch {1}; Dehaze Network Loss {2:.4f}, PSNR = {3:.4f}, SSIM = {4:.4f})".format(best_model_file, epoch, best_dehazing_loss,
+        psnr_loss, ssim_loss))
         print('***Test***')
         valid_loss = validate(test_loader, distilled_model, epoch, args)
 
-        print('Results on test set: Dehaze Network Loss = {0:.4f}'.format(valid_loss['dehazing_loss'].avg))
+        print('Results on test set: Dehaze Network Loss = {0:.4f}, PSNR = {1:.4f}, SSIM = {2:.4f}'.format(valid_loss['dehazing_loss'].avg,
+         valid_loss["loss_psnr"].avg, valid_loss["loss_ssim"].avg))
         if args.save_image_results:
             print('Saving image results...', end='')
             path_image_results = os.path.join(path_results, 'image_results')
@@ -181,7 +195,8 @@ def train(train_loader, distilled_model, epoch, args):
     loss_student_rec = AverageMeter()
     loss_student_perceptual = AverageMeter()
     loss_dehazing_network = AverageMeter()
-
+    loss_psnr = AverageMeter()
+    loss_ssim = AverageMeter()
 
     # Start counting time
     time_start = time.time()
@@ -199,6 +214,8 @@ def train(train_loader, distilled_model, epoch, args):
         loss_student_rec.update(loss["student_rec_loss"].item(), gt.size(0))
         loss_student_perceptual.update(loss["perceptual_loss"].item(), gt.size(0))
         loss_dehazing_network.update(loss["dehazing_loss"].item(), gt.size(0))
+        loss_psnr.update(loss["loss_psnr"].item(), gt.size(0))
+        loss_ssim.update(loss["loss_ssim"].item(), gt.size(0))
 
         # time
         time_end = time.time()
@@ -212,15 +229,20 @@ def train(train_loader, distilled_model, epoch, args):
                   'Student Reconstruction Loss {loss_student.val:.4f} ({loss_student.avg:.4f})\t'
                   'Student Perceptual Loss {loss_perc.val:.4f} ({loss_perc.avg:.4f})\t'
                     'Dehazing Network Loss {loss_dehaze.val:.4f} ({loss_dehaze.avg:.4f})\t'
+                    'PSNR {loss_psnr.val:.4f} ({loss_psnr.avg:.4f})\t'
+                    'SSIM {loss_ssim.val:.4f} ({loss_ssim.avg:.4f})\t'
                   .format(epoch + 1, i + 1, len(train_loader), batch_time=batch_time, loss_teacher=loss_teacher_rec,
-                  loss_student=loss_student_rec, loss_perc=loss_student_perceptual, loss_dehaze=loss_dehazing_network))
+                  loss_student=loss_student_rec, loss_perc=loss_student_perceptual, loss_dehaze=loss_dehazing_network,
+                  loss_psnr=loss_psnr, loss_ssim=loss_ssim))
 
 
 
     losses = {"teacher_rec_loss":loss_teacher_rec,
                 "student_rec_loss":loss_student_rec,
                 "perceptual_loss":loss_student_perceptual,
-                "dehazing_loss":loss_dehazing_network}
+                "dehazing_loss":loss_dehazing_network,
+                "loss_psnr":loss_psnr,
+                "loss_ssim":loss_ssim}
 
     return losses
 

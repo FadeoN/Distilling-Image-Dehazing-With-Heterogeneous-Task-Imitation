@@ -102,3 +102,22 @@ def save_an_image(path, path_results, img, postfix="_REC"):
 
 
     save_image(img, path, normalize=True, range=(-1, 1))
+
+def gaussian_filter(size: int, sigma: float) -> torch.Tensor:
+    r"""Returns 2D Gaussian kernel N(0,`sigma`^2)
+    Args:
+        size: Size of the lernel
+        sigma: Std of the distribution
+    Returns:
+        gaussian_kernel: 2D kernel with shape (1 x kernel_size x kernel_size)
+    References:
+        https://github.com/photosynthesis-team/piq/blob/master/piq/functional/filters.py
+    """
+    coords = torch.arange(size).to(dtype=torch.float32)
+    coords -= (size - 1) / 2.
+
+    g = coords ** 2
+    g = (- (g.unsqueeze(0) + g.unsqueeze(1)) / (2 * sigma ** 2)).exp()
+
+    g /= g.sum()
+    return g.unsqueeze(0)

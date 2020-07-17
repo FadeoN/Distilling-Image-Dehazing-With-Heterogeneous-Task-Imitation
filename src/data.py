@@ -7,8 +7,7 @@ from PIL import Image
 
 class DataGeneratorPaired(data.Dataset):
 
-    def __init__(self, splits, mode="train", transform_hazy=transforms.Compose([transforms.CenterCrop(64), transforms.ToTensor()]), 
-    transform_gt=transforms.Compose([transforms.CenterCrop(64), transforms.ToTensor()])):
+    def __init__(self, splits, mode="train"):
 
 
         if mode == "train":
@@ -23,10 +22,21 @@ class DataGeneratorPaired(data.Dataset):
         else:
             raise "Incorrect dataset mode"
 
-        self.transform_hazy = transform_hazy
-        self.transform_gt = transform_gt
+        self.transform_hazy = self.get_transforms()
+        self.transform_gt = self.get_transforms()
 
 
+    def get_transforms(self):
+        """
+        Returns transforms to apply on images.
+        """
+
+        transforms_list = []
+
+        transforms_list.append(transforms.CenterCrop(256))
+        transforms_list.append(transforms.ToTensor())
+        transforms_list.append(transforms.Normalize( (0.5, 0.5, 0.5), (0.5, 0.5, 0.5) ))
+        return transforms.Compose(transforms_list)
 
 
     def __getitem__(self, index):

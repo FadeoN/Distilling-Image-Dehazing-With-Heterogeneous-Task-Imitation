@@ -23,6 +23,8 @@ def validate(val_loader, distilled_model, epoch, args):
     loss_student_rec = AverageMeter()
     loss_student_perceptual = AverageMeter()
     loss_dehazing_network = AverageMeter()
+    loss_psnr = AverageMeter()
+    loss_ssim = AverageMeter()
 
 
     # Start counting time
@@ -43,6 +45,9 @@ def validate(val_loader, distilled_model, epoch, args):
             loss_student_rec.update(loss["student_rec_loss"].item(), gt.size(0))
             loss_student_perceptual.update(loss["perceptual_loss"].item(), gt.size(0))
             loss_dehazing_network.update(loss["dehazing_loss"].item(), gt.size(0))
+            loss_psnr.update(loss["loss_psnr"].item(), gt.size(0))
+            loss_ssim.update(loss["loss_ssim"].item(), gt.size(0))
+
 
             # time
             time_end = time.time()
@@ -50,21 +55,26 @@ def validate(val_loader, distilled_model, epoch, args):
             time_start = time_end
 
             if (i + 1) % args.log_interval == 0:
-                print('[Train] Epoch: [{0}][{1}/{2}]\t'
+                print('[Test] Epoch: [{0}][{1}/{2}]\t'
                     'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                     'Teacher Reconstruction Loss {loss_teacher.val:.4f} ({loss_teacher.avg:.4f})\t'
                     'Student Reconstruction Loss {loss_student.val:.4f} ({loss_student.avg:.4f})\t'
                     'Student Perceptual Loss {loss_perc.val:.4f} ({loss_perc.avg:.4f})\t'
-                        'Dehazing Network Loss {loss_dehaze.val:.4f} ({loss_dehaze.avg:.4f})\t'
+                    'Dehazing Network Loss {loss_dehaze.val:.4f} ({loss_dehaze.avg:.4f})\t'
+                    'PSNR {loss_psnr.val:.4f} ({loss_psnr.avg:.4f})\t'
+                    'SSIM {loss_ssim.val:.4f} ({loss_ssim.avg:.4f})\t'
                     .format(epoch + 1, i + 1, len(val_loader), batch_time=batch_time, loss_teacher=loss_teacher_rec,
-                    loss_student=loss_student_rec, loss_perc=loss_student_perceptual, loss_dehaze=loss_dehazing_network))
+                    loss_student=loss_student_rec, loss_perc=loss_student_perceptual, loss_dehaze=loss_dehazing_network,
+                    loss_psnr=loss_psnr, loss_ssim=loss_ssim))
 
 
 
         losses = {"teacher_rec_loss":loss_teacher_rec,
                     "student_rec_loss":loss_student_rec,
                     "perceptual_loss":loss_student_perceptual,
-                    "dehazing_loss":loss_dehazing_network}
+                    "dehazing_loss":loss_dehazing_network,
+                    "loss_psnr":loss_psnr,
+                    "loss_ssim":loss_ssim}
 
         return losses
 
@@ -90,6 +100,7 @@ def save_image_results(test_loader, distilled_model, path_results):
                 gt, hazy = gt.cuda(), hazy.cuda()
 
             rec_gts, rec_frees = distilled_model.get_reconstructed_images(gt, hazy)
+
 
             for j, gt_path in enumerate(gt_paths):
 

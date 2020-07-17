@@ -9,16 +9,18 @@ import torch.nn.functional as F
 from vgg import VGGNetFeats
 
 from resnet_models import ResBlock, ResidualInResiduals
+from losses import psnr, ssim
 
 class Teacher(nn.Module):
     """
     Takes hazy free ground truth image and learns to reconstruct it in an unsupervised way
     """
-    def __init__(self, input_channels=3, inner_channels=64, block_count = 6):
+    def __init__(self, input_channels=3, inner_channels=64, block_count = 6, mimicking_layers=[2, 4, 6]):
         super(Teacher, self).__init__()
 
         output_channels = input_channels
 
+        self.mimicking_layers = mimicking_layers
 
         self.downsample = self._make_downsample_layer(input_channels, inner_channels)
 
@@ -28,6 +30,7 @@ class Teacher(nn.Module):
 
         self.reconstruction = self._make_reconstruction_layer(inner_channels, output_channels)
 
+            
 
     def forward(self, gt_image):
 
@@ -42,6 +45,18 @@ class Teacher(nn.Module):
         rec = self.reconstruction(rec)
 
         return rec
+
+    
+    def forward_mimicking_features(self, gt_image):
+
+        rec = self.downsample(gt_image)
+
+        for idx, layer in enumerate(self.res_blocks):
+
+            rec = layer(rec)
+
+            if idx in self.mimicking_layers:
+                yield rec
 
         
     def _make_reconstruction_layer(self, inlayer, outlayer, stride=1):
@@ -78,10 +93,12 @@ class Student(nn.Module):
     Takes hazy image as input and outputs hazy free image
     """
 
-    def __init__(self, input_channels=3, inner_channels=64, block_count=6):
+    def __init__(self, input_channels=3, inner_channels=64, block_count=6, mimicking_layers=[2, 4, 6]):
         super(Student, self).__init__()
 
         output_channels = input_channels
+
+        self.mimicking_layers = mimicking_layers
 
         self.downsample = self._make_downsample_layer(input_channels, inner_channels)
 
@@ -92,9 +109,9 @@ class Student(nn.Module):
         self.reconstruction = self._make_reconstruction_layer(inner_channels, output_channels)
 
 
-    def forward(self, hazy):
+    def forward(self, hazy_image):
 
-        rec = self.downsample(hazy)
+        rec = self.downsample(hazy_image)
 
         for i, _ in enumerate(self.res_blocks):
             rec = self.res_blocks[i](rec)
@@ -106,6 +123,16 @@ class Student(nn.Module):
         return rec
 
 
+    def forward_mimicking_features(self, hazy_image):
+
+        rec = self.downsample(hazy_image)
+
+        for idx, layer in enumerate(self.res_blocks):
+
+            rec = layer(rec)
+
+            if idx in self.mimicking_layers:
+                yield rec
 
     def _make_reconstruction_layer(self, inlayer, outlayer, stride=1):
 
@@ -267,14 +294,25 @@ class Distilled(nn.Module):
             
             perceptual_loss += self.perceptual_loss(rec_feat, gt_feat)
 
+        mimicking_loss = 0.0
 
-        # TODO ADD MIMICKING LOSS
+        for idx, (gt_mimicking, rec_mimicking) in enumerate(zip(self.teacher.forward_mimicking_features(gt), self.student.forward_mimicking_features(hazy))):
+
+            mimicking_loss += self.mimicking_loss(gt_mimicking, rec_mimicking)
+
+
 
         self.student_optimizer.zero_grad()
-        dehazing_loss = student_recons_loss + args.lambda_p * perceptual_loss
+        dehazing_loss = student_recons_loss + args.lambda_p * perceptual_loss + args.lambda_rm * mimicking_loss
         dehazing_loss.backward()
         self.student_optimizer.step()
         
+        # Scale between 0 - 1
+        rec_hazy_free = rec_hazy_free + 1
+        gt = gt + 1
+
+        psnr_loss = psnr(rec_hazy_free, gt)
+        ssim_loss = ssim(rec_hazy_free, gt)
 
 
 
@@ -283,6 +321,9 @@ class Distilled(nn.Module):
 
         losses["perceptual_loss"] = perceptual_loss
         losses["dehazing_loss"] = dehazing_loss
+
+        losses["loss_psnr"] = psnr_loss
+        losses["loss_ssim"] = ssim_loss
 
 
         self.teacher_scheduler.step(teacher_recons_loss)
@@ -319,6 +360,12 @@ class Distilled(nn.Module):
         dehazing_loss = student_recons_loss + args.lambda_p * perceptual_loss
 
         
+        # Scale between 0 - 1
+        rec_hazy_free = rec_hazy_free + 1
+        gt = gt + 1
+
+        psnr_loss = psnr(rec_hazy_free, gt)
+        ssim_loss = ssim(rec_hazy_free, gt)
 
 
 
@@ -327,6 +374,10 @@ class Distilled(nn.Module):
 
         losses["perceptual_loss"] = perceptual_loss
         losses["dehazing_loss"] = dehazing_loss
+
+        losses["loss_psnr"] = psnr_loss
+        losses["loss_ssim"] = ssim_loss
+
 
 
         self.teacher_scheduler.step(teacher_recons_loss)

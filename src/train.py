@@ -47,7 +47,7 @@ def main():
 
     # Load the dataset
     print('Loading data...', end='')
-    splits = utils.load_files_and_partition(path_dataset, train_ratio=args.train_ratio, val_ratio=args.val_ratio)
+    splits = utils.load_files_and_partition(path_dataset, train_ratio=args.train_ratio, val_ratio=args.val_ratio, hazy_dir_name=args.hazy_dir, gt_dir_name=args.gt_dir)
 
 
     train_data = DataGeneratorPaired(splits, mode="train")
@@ -74,12 +74,12 @@ def main():
     if(args.load_best_model==True and args.best_model_path!="" and os.path.exists(args.best_model_path)):
         print("Loading Best model....")
         model_checkpoint = torch.load(args.best_model_path)
-        distilled_model.load_state_dict(model_checkpoint)
+        distilled_model.load_state_dict(model_checkpoint["state_dict"])
         print("Done")
     elif(args.load_best_teacher_model == True and args.best_teacher_model_path!= "" and os.path.exists(args.best_teacher_model_path)):
         print("Loading Best teacher model....")
         model_checkpoint = torch.load(args.best_teacher_model_path)
-        distilled_model.load_state_dict(model_checkpoint, strict=False)
+        distilled_model.load_state_dict(model_checkpoint["state_dict"], strict=False)
         print("Done")
 
 
@@ -97,7 +97,7 @@ def main():
     print('Done')
 
 
-    best_dehazing_loss = 0
+    best_dehazing_loss = float("inf")
     early_stop_counter = 0
 
     # Epoch for loop
@@ -108,9 +108,6 @@ def main():
 
             # train on training set
             losses = train(train_loader, distilled_model, epoch, args)
-            path_image_results = os.path.join(path_results, 'image_results1')
-            # TODO DELETE CODE BELOW
-            save_image_results(train_loader, distilled_model, path_image_results)
 
             # evaluate on validation set, map_ since map is already there
             print('***Validation***')
@@ -121,7 +118,7 @@ def main():
                 .format(epoch + 1, dehazing_loss, valid_loss["loss_psnr"].avg, valid_loss["loss_ssim"].avg))
 
 
-            if dehazing_loss > best_dehazing_loss:
+            if dehazing_loss < best_dehazing_loss:
                 best_dehazing_loss = dehazing_loss
                 early_stop_counter = 0
                 utils.save_checkpoint({'epoch': epoch + 1, 'state_dict': distilled_model.state_dict(), 'best_dehazing_loss':

@@ -47,7 +47,7 @@ def main():
 
     # Load the dataset
     print('Loading data...', end='')
-    splits = utils.load_files_and_partition(path_dataset)
+    splits = utils.load_files_and_partition(path_dataset, train_ratio=args.train_ratio, val_ratio=args.val_ratio, hazy_dir_name=args.hazy_dir, gt_dir_name=args.gt_dir)
 
 
     train_data = DataGeneratorPaired(splits, mode="train")
@@ -73,7 +73,7 @@ def main():
     if(args.load_best_model==True and args.best_model_path!="" and os.path.exists(args.best_model_path)):
         print("Loading Best model....")
         model_checkpoint = torch.load(args.best_model_path)
-        teacher_model.load_state_dict(model_checkpoint)
+        teacher_model.load_state_dict(model_checkpoint["state_dict"])
         print("Done")
 
     print('Setting logger...', end='')
@@ -90,7 +90,7 @@ def main():
     print('Done')
 
 
-    best_rec_loss = 0
+    best_rec_loss = float("inf")
     early_stop_counter = 0
 
     # Epoch for loop
@@ -111,7 +111,7 @@ def main():
                 .format(epoch + 1, rec_loss))
 
 
-            if rec_loss > best_rec_loss:
+            if rec_loss < best_rec_loss:
                 best_rec_loss = rec_loss
                 early_stop_counter = 0
                 utils.save_checkpoint({'epoch': epoch + 1, 'state_dict': teacher_model.state_dict(), 'best_rec_loss':

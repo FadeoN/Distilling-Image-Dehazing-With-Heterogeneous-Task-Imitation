@@ -47,12 +47,13 @@ def save_checkpoint(state, directory):
     torch.save(state, checkpoint_file)
     shutil.copyfile(checkpoint_file, best_model_file)
 
-def load_files_and_partition(root_path, train_ratio=0.9, val_ratio=0.05):
+def load_files_and_partition(root_path, train_ratio=0.9, val_ratio=0.05, hazy_dir_name="hazy", gt_dir_name="GT"):
     
     np.random.seed(0)
 
-    gt_paths, hazy_paths = load_pairs(root_path)
+    gt_paths, hazy_paths = load_pairs(root_path, hazy_dir_name=hazy_dir_name, gt_dir_name=gt_dir_name)
 
+    hazy_paths = pair_selection(gt_paths, hazy_paths)
 
 
     if len(gt_paths) != len(hazy_paths):
@@ -60,9 +61,9 @@ def load_files_and_partition(root_path, train_ratio=0.9, val_ratio=0.05):
 
     indexes = list(range(len(gt_paths)))
 
-    tr_indexes = np.random.choice(indexes, int(train_ratio * len(indexes)), replace=False)
-    val_indexes = np.random.choice(np.setdiff1d(indexes, tr_indexes), int(val_ratio * len(indexes)), replace=False)
-    te_indexes = np.setdiff1d(indexes, np.union1d(tr_indexes, val_indexes))
+    tr_indexes = np.random.choice(indexes, int(train_ratio * len(indexes)), replace=False).astype(int)
+    val_indexes = np.random.choice(np.setdiff1d(indexes, tr_indexes), int(val_ratio * len(indexes)), replace=False).astype(int)
+    te_indexes = np.setdiff1d(indexes, np.union1d(tr_indexes, val_indexes)).astype(int)
 
 
     splits = dict()
@@ -78,28 +79,64 @@ def load_files_and_partition(root_path, train_ratio=0.9, val_ratio=0.05):
 
     return splits
 
-def load_pairs(root_path):
+def get_last_part_of_path(paths):
 
-    return (load_gt_images(root_path), load_hazy_images(root_path))
+    parted_paths = []
 
-def load_gt_images(root_path):
+    for i in range(len(paths)):
 
-    return np.array([name for name in glob.glob(os.path.join(root_path, "*/*_GT.jpg"))])
+        last_part = os.path.basename(os.path.normpath(paths[i]))
+
+        parted_paths.append(last_part)
+
+    return parted_paths
+
+def pair_selection(gt_paths, hazy_paths):
+
+    m = len(gt_paths)
+
+    last_part_hazy_paths = get_last_part_of_path(hazy_paths)
+
+    selected_hazy_paths = []
+
+    for i in range(m):
+
+        # get last part of the path
+        name = os.path.basename(os.path.normpath(gt_paths[i])).split(".")[0].split("_")[0]
+
+        # find matching names
+        indexes = np.flatnonzero(np.core.defchararray.find(last_part_hazy_paths, name) != -1)
+
+        # Select 1 pair from N matching examples
+        selected_path = np.random.choice(hazy_paths[indexes], 1, replace=False)
+
+        selected_hazy_paths.append(selected_path[0])
+
+    return np.array(selected_hazy_paths)
+
+def load_pairs(root_path, hazy_dir_name="hazy", gt_dir_name="GT"):
+
+    return (load_gt_images(root_path, gt_dir_name), load_hazy_images(root_path, hazy_dir_name))
+
+def load_gt_images(root_path, gt_dir_name):
+
+    return np.array([name for name in glob.glob(os.path.join(root_path, gt_dir_name, "*.jpg"))])
 
     
-def load_hazy_images(root_path):
-    return np.array([name for name in glob.glob(os.path.join(root_path, "*/*_hazy.jpg"))])
+def load_hazy_images(root_path, hazy_dir_name):
+    return np.array([name for name in glob.glob(os.path.join(root_path, hazy_dir_name, "*.jpg"))])
 
 def save_an_image(path, path_results, img, postfix="_REC"):
 
-    base, ext = os.path.basename(path).split(".")
+    *base, ext = os.path.basename(path).split(".")
+    base = ".".join(base)
 
     base = base + postfix
 
+    ext = "png"
+
     img_name = base + "." + ext
     path = os.path.join(path_results, img_name)
-
-
 
     save_image(img, path, normalize=True, range=(-1, 1))
 

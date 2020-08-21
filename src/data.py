@@ -33,7 +33,7 @@ class DataGeneratorPaired(data.Dataset):
 
         transforms_list = []
 
-        transforms_list.append(transforms.CenterCrop(256))
+        transforms_list.append(transforms.CenterCrop(255))
         transforms_list.append(transforms.ToTensor())
         transforms_list.append(transforms.Normalize( (0.5, 0.5, 0.5), (0.5, 0.5, 0.5) ))
         return transforms.Compose(transforms_list)

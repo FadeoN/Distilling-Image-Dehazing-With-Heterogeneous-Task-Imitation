@@ -44,6 +44,14 @@ class Teacher(nn.Module):
 
         rec = self.reconstruction(rec)
 
+
+        # Reshape the output image to match input image (odd shapes cause mismatch problem)
+        if rec.shape != gt_image.shape:
+            _, _, *im_shape = gt_image.shape
+
+            rec = F.interpolate(rec, size=im_shape, mode="bilinear")
+
+
         return rec
 
     
@@ -119,6 +127,14 @@ class Student(nn.Module):
         rec = self.upsample(rec)
 
         rec = self.reconstruction(rec)
+
+
+        # Reshape the output image to match input image (odd shapes cause mismatch problem)
+        if rec.shape != hazy_image.shape:
+            _, _, *im_shape = hazy_image.shape
+
+            rec = F.interpolate(rec, size=im_shape, mode="bilinear")
+
 
         return rec
 

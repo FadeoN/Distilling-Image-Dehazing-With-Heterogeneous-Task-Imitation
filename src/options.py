@@ -28,7 +28,7 @@ class Options:
         parser.add_argument('--num-workers', type=int, default=4, help='Number of workers in data loader')
         parser.add_argument('--load-best-model', action='store_false', default=True, help='Load the model weight from given path.')
         parser.add_argument('--load-best-teacher-model', action='store_true', default=False, help='Load the teacher model weight from given path.')
-        parser.add_argument("--best-model-path", type=str, default="D:/Git/Distilling-Image-Dehazing/models/model_best.pth", help="Best model path to be loaded.")
+        parser.add_argument("--best-model-path", type=str, default="model_best.pth", help="Best model path to be loaded.")
         parser.add_argument("--best-teacher-model-path", type=str, default="", help="Best teacher model path to be loaded.")
 
         # Checkpoint parameters
